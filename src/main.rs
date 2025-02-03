@@ -1,7 +1,23 @@
 use anyhow::{anyhow, Result};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use clap_stdin::FileOrStdin;
 use goban::rules::game::Game;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum Ordering {
+    XY,
+    YX,
+}
+
+impl ToString for Ordering {
+    fn to_string(&self) -> String {
+        match self {
+            Ordering::XY => "xy",
+            Ordering::YX => "yx",
+        }
+        .into()
+    }
+}
 
 #[derive(Parser)]
 #[command(version)]
@@ -10,11 +26,19 @@ struct Args {
     x_labels: String,
     /// whitespace separated list of y labels to use
     y_labels: String,
-    sgf: FileOrStdin
+    sgf: FileOrStdin,
+    /// whether to display coordinates as xy or yx
+    #[arg(default_value_t = Ordering::XY)]
+    ordering: Ordering,
 }
 
 fn main() -> Result<()> {
-    let Args { sgf, x_labels, y_labels } = Args::parse();
+    let Args {
+        sgf,
+        x_labels,
+        y_labels,
+        ordering,
+    } = Args::parse();
 
     let x_labels: Vec<&str> = x_labels.split_whitespace().collect();
     let y_labels: Vec<&str> = y_labels.split_whitespace().collect();
@@ -37,13 +61,22 @@ fn main() -> Result<()> {
         ));
     }
 
-    let legal_moves: Vec<_> = game.legals().map(|(x, y)| {
-        format!(
-            "{}{}",
-             x_labels.get(x as usize).expect("should have checked there were enough labels"),
-             y_labels.get(y as usize).expect("should have checked there were enough labels"),
-        )
-    }).collect();
+    let legal_moves: Vec<_> = game
+        .legals()
+        .map(|(x, y)| {
+            let x_label = x_labels
+                .get(x as usize)
+                .expect("should have checked there were enough labels");
+            let y_label = y_labels
+                .get(y as usize)
+                .expect("should have checked there were enough labels");
+            match ordering {
+                Ordering::XY => (x_label, y_label),
+                Ordering::YX => (y_label, x_label),
+            }
+        })
+        .map(|(first, second)| format!("{}{}", first, second))
+        .collect();
     print!("({})", legal_moves.join("|"));
 
     Ok(())
